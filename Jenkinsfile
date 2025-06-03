@@ -2,11 +2,11 @@ pipeline {
 	agent any
 
 	environment {
-		NODE_ENV			 = 'production'
+		NODE_ENV = 'production'
 
-		VERCEL_TOKEN	 = credentials('vercel-token')
-		VERCEL_ORG		 = 'team_wz45GH7OUWlcXZOu74p2cV20'
-		VERCEL_PROJECT = 'prj_2RrjFywZGW0gpozhotXlzjqAgG0f'
+		VERCEL_TOKEN	    = credentials('vercel-token')
+		VERCEL_ORG_ID		  = 'team_wz45GH7OUWlcXZOu74p2cV20'
+		VERCEL_PROJECT_ID = 'prj_2RrjFywZGW0gpozhotXlzjqAgG0f'
 
 		POSTGRES_PRISMA_URL = 'postgres://newbee@localhost:5432/aix'
 
@@ -121,9 +121,9 @@ pipeline {
 		stage('Deploy to Vercel') {
 			steps {
 				sh '''
-					DEPLOY_OUTPUT=$(pnpm run deploy --token $VERCEL_TOKEN --confirm --prod --scope $VERCEL_ORG --project $VERCEL_PROJECT --json)
-					echo "$DEPLOY_OUTPUT" > vercel-output.json
-					DEPLOY_URL=$(node -e "console.log(JSON.parse(require('fs').readFileSync('vercel-output.json')).url)")
+					pnpm run deploy --token $VERCEL_TOKEN --prod --yes | tee vercel-output.txt
+					DEPLOY_URL=$(grep -Eo 'https?://[a-zA-Z0-9.-]+\\.vercel\\.app' vercel-output.txt)
+
 					echo "Deployed to: $DEPLOY_URL"
 					echo $DEPLOY_URL > vercel-url.txt
 				'''
