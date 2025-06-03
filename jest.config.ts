@@ -16,7 +16,17 @@ const config: Config = {
 	},
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1'
-  }
+  },
+  reporters: [
+    "default",
+    [
+      "jest-junit",
+      {
+        outputDirectory: ".",
+        outputName: "test-results.xml",
+      },
+    ],
+  ],
 };
 
 export default config;
