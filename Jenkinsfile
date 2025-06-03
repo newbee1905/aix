@@ -121,7 +121,7 @@ pipeline {
 		stage('Deploy to Vercel') {
 			steps {
 				sh '''
-					DEPLOY_OUTPUT=$(vercel --token $VERCEL_TOKEN --confirm --prod --scope $VERCEL_ORG --project $VERCEL_PROJECT --json)
+					DEPLOY_OUTPUT=$(pnpm deploy --token $VERCEL_TOKEN --confirm --prod --scope $VERCEL_ORG --project $VERCEL_PROJECT --json)
 					echo "$DEPLOY_OUTPUT" > vercel-output.json
 					DEPLOY_URL=$(node -e "console.log(JSON.parse(require('fs').readFileSync('vercel-output.json')).url)")
 					echo "Deployed to: $DEPLOY_URL"
