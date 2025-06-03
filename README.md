@@ -48,7 +48,7 @@ pnpm i
 cd scripts
 source venv/bin/activate
 
-python extract_and_quantise.py
+python export_and_quantize.py                
 
 cp -r ../public/models ../models
 ```
