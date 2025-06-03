@@ -3,6 +3,7 @@ from huggingface_hub import snapshot_download
 from transformers import AutoTokenizer
 from optimum.onnxruntime import ORTModelForSequenceClassification, ORTQuantizer
 from optimum.onnxruntime.configuration import AutoQuantizationConfig
+import shutil
 
 # TOX_MODEL_ID = "unitary/toxic-bert"
 TOX_MODEL_ID = "tensor-trek/distilbert-toxicity-classifier"
@@ -43,6 +44,19 @@ def export_and_quantize(model_id: str):
 		onnx_dst = os.path.join(onnx_dst_dir, "model_quantized.onnx")
 		os.replace(onnx_src, onnx_dst)
 		print(f"Moved model_quantized.onnx to {onnx_dst_dir}")
+	
+	float_onnx = os.path.join(export_dir, "model.onnx")
+	if os.path.exists(float_onnx):
+		os.remove(float_onnx)
+		print("Removed unquantized model.onnx")
+
+	# remove the HF repo directory
+	for entry in os.listdir(export_dir):
+		entry_path = os.path.join(export_dir, entry)
+		if entry.startswith("models--") and os.path.isdir(entry_path):
+			shutil.rmtree(entry_path)
+			print(f"Deleted HF repo folder {entry}")
+
 
 for model_id in (TOX_MODEL_ID, ):
 	export_and_quantize(model_id)
