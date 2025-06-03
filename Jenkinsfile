@@ -3,14 +3,19 @@ pipeline {
 
 	environment {
 		NODE_ENV			 = 'production'
+
 		VERCEL_TOKEN	 = credentials('vercel-token')
 		VERCEL_ORG		 = 'team_wz45GH7OUWlcXZOu74p2cV20'
 		VERCEL_PROJECT = 'prj_2RrjFywZGW0gpozhotXlzjqAgG0f'
+
 		POSTGRES_PRISMA_URL = 'postgres://newbee@localhost:5432/aix'
-		JWT_SECRET="secret"
-		JWT_EXPIRES_IN=86400
-		REFRESH_EXPIRES_IN=2592000
-		REFRESH_ROTATE_BEFORE=1296000
+
+		JWT_SECRET            ="secret"
+		JWT_EXPIRES_IN        =86400
+		REFRESH_EXPIRES_IN    =2592000
+		REFRESH_ROTATE_BEFORE =1296000
+
+		SONAR_TOKEN = credentials('SONAR_TOKEN')
 	}
 
 	stages {
@@ -64,9 +69,7 @@ pipeline {
 
 		stage('SonarQube Analysis') {
 			steps {
-				withSonarQubeEnv('SonarQube') {
-					sh 'pnpm sonar'
-				}
+				sh 'pnpm sonar'
 			}
 		}
 
@@ -89,36 +92,34 @@ pipeline {
 			}
 		}
 
-		stage('Deploy to Staging') {
+		stage('Deploy & Verify Staging') {
 			steps {
 				script {
 					sh '''
 						pkill -f "pnpm start" || true
 
-						nohup pnpm start > staging.log 2>&1 &
+						nohup pnpm start -p 3000 -H 0.0.0.0 > staging.log 2>&1 &	
+						PID=$!
+
+						for i in {1..10}; do
+							STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 || echo "000")
+							if [ "$STATUS" = "200" ]; then
+								echo "Staging is up"
+								exit 0
+							fi
+							sleep 3
+						done
+
+						echo "Staging did not respond" >&2
+						kill "$PID" || true
+						exit 1
 					'''
 				}
 			}
 		}
 
-		stage('Verify Staging') {
-			steps {
-				sh '''
-					for i in {1..10}; do
-						HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000)
-						if [ "$HTTP_CODE" -eq 200 ]; then
-							echo "Staging is up" && exit 0
-						fi
-						sleep 3
-					done
-					echo "Staging did not respond" && exit 1
-				'''
-			}
-		}
-
 		stage('Deploy to Vercel') {
 			steps {
-				sh 'pnpm install -g vercel'
 				sh '''
 					DEPLOY_OUTPUT=$(vercel --token $VERCEL_TOKEN --confirm --prod --scope $VERCEL_ORG --project $VERCEL_PROJECT --json)
 					echo "$DEPLOY_OUTPUT" > vercel-output.json
@@ -133,6 +134,7 @@ pipeline {
 
 	post {
 		always {
+			archiveArtifacts artifacts: 'staging.log, vercel-output.json, vercel-url.txt, curl_output.log', fingerprint: true
 			cleanWs()
 		}
 	}
