@@ -27,6 +27,10 @@ const config: Config = {
       },
     ],
   ],
+	coverageReporters: [
+		"json-summary",
+		"lcov",
+	],
 };
 
 export default config;

@@ -45,7 +45,7 @@ pipeline {
 
 		stage('Test') {
 			steps {
-				sh 'pnpm test --coverage --coverageReporters=json-summary'
+				sh 'pnpm test'
 				sh '''
 					COVERAGE=$(node -e "console.log(require('./coverage/coverage-summary.json').total.lines.pct)")
 					if [ "$COVERAGE" -lt 75 ]; then
@@ -62,17 +62,30 @@ pipeline {
 			}
 		}
 
-		// stage('SonarQube Analysis') {
-		// 	steps {
-		// 		withSonarQubeEnv('SonarQube') {
-		// 			sh 'pnpm run sonar'
-		// 		}
-		// 	}
-		// }
+		stage('SonarQube Analysis') {
+			steps {
+				withSonarQubeEnv('SonarQube') {
+					sh 'pnpm sonar'
+				}
+			}
+		}
 
 		stage('Security Audit') {
 			steps {
 				sh 'pnpm audit --json > audit.json || true'
+				sh '''
+					VULNS=$(node -e "\
+						const fs = require('fs'); \
+						const data = JSON.parse(fs.readFileSync('audit.json', 'utf8')); \
+						const h = data.metadata.vulnerabilities.high || 0; \
+						const c = data.metadata.vulnerabilities.critical || 0; \
+						console.log(h + c); \
+					")
+					if [ "$VULNS" -gt 0 ]; then
+						echo "Found $VULNS high/critical vulnerabilities" && exit 1
+					fi
+					echo "No high/critical vulnerabilities found."
+				'''
 			}
 		}
 
@@ -85,6 +98,21 @@ pipeline {
 						nohup pnpm start > staging.log 2>&1 &
 					'''
 				}
+			}
+		}
+
+		stage('Verify Staging') {
+			steps {
+				sh '''
+					for i in {1..10}; do
+						HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000)
+						if [ "$HTTP_CODE" -eq 200 ]; then
+							echo "Staging is up" && exit 0
+						fi
+						sleep 3
+					done
+					echo "Staging did not respond" && exit 1
+				'''
 			}
 		}
 
@@ -101,21 +129,6 @@ pipeline {
 			}
 		}
 
-		stage('Verify Production') {
-			steps {
-				sh '''
-					PROD_URL=$(cat vercel-url.txt)
-					for i in {1..10}; do
-						HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://$PROD_URL)
-						if [ "$HTTP_CODE" -eq 200 ]; then
-							echo "Production is up" && exit 0
-						fi
-						sleep 5
-					done
-					echo "Production did not respond" && exit 1
-				'''
-			}
-		}
 	}
 
 	post {
